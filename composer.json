@@ -1,0 +1,25 @@
+{
+    "name": "markerly/scrapper",
+    "description": "A scraper for social platforms",
+    "type": "library",
+    "license": "proprietary",
+    "autoload": {
+        "psr-4": {
+            "Markerly\\Scrapper\\": "src/"
+        }
+    },
+    "minimum-stability": "dev",
+    "require": {
+        "illuminate/http": "8.x-dev",
+        "illuminate/database": "8.x-dev",
+        "illuminate/support": "8.x-dev",
+        "nesbot/carbon": "2.x-dev"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Markerly\\ScrapperProvider"
+            ]
+        }
+    }
+}
