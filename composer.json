@@ -10,7 +10,7 @@
     },
     "minimum-stability": "dev",
     "require": {
-        "illuminate/http": "8.x-dev",
+        "illuminate/http": "^8.0",
         "illuminate/database": "8.x-dev",
         "illuminate/support": "8.x-dev",
         "nesbot/carbon": "2.x-dev"
