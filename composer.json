@@ -20,7 +20,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Markerly\\Scrapper\\Providers\\ScrapperProvider"
+                "Markerly\\Scrapper"
             ]
         }
     }

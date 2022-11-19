@@ -13,10 +13,10 @@ class ScrapperProvider extends ServiceProvider
      */
     public function boot()
     {
-        $this->loadMigrationsFrom(__DIR__.'/src/Database/Migrations');
+        $this->loadMigrationsFrom(__DIR__.'\..\Database\Migrations');
 
         $this->publishes([
-            __DIR__.'/src/config/platforms.php' => config_path('platforms.php'),
+            __DIR__.'\..\config\platforms.php' => config_path('platforms.php'),
         ]);
     }
 }
