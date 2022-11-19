@@ -1,6 +1,6 @@
 <?php
 
-namespace Fhsinchy\Inspire\Providers;
+namespace Markerly\Scrapper\Providers;
 
 use Illuminate\Support\ServiceProvider;
 
