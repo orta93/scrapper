@@ -2,18 +2,27 @@
 
 namespace Markerly\Scrapper;
 
-use App\Models\Account;
-use App\Models\Media;
-use App\Models\Post;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
+use Markerly\Scrapper\Models\Account;
+use Markerly\Scrapper\Models\Media;
+use Markerly\Scrapper\Models\Post;
 use Carbon\Carbon;
 use DOMDocument;
 use DOMXPath;
 use Exception;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Psr\Container\ContainerExceptionInterface;
+use Psr\Container\NotFoundExceptionInterface;
 
 class Scrapper {
-    protected array $urls = [
+    /**
+     * Array for available platforms links
+     * @var array|string[]
+     */
+    protected static array $urls = [
         'instagram' => 'https://www.instagram.com',
         'tiktok' => 'https://www.tiktok.com',
         'youtube' => 'https://www.youtube.com',
@@ -22,31 +31,46 @@ class Scrapper {
         'twitter' => 'https://www.twitter.com',
     ];
 
-    public function postByLink($link)
+    /**
+     * Get a post by a link
+     * @param $link
+     * @return Builder|Model|JsonResponse|mixed|object|null
+     * @throws Exception
+     */
+    public static function postByLink($link)
     {
         $string = $link;
         $link = Str::of($string)->after('https://');
         $link = Str::of($link)->after('www.');
 
         if (Str::of($string)->contains('vm.tiktok.com')) {
-            return $this->getPostFromTiktokLink($string);
+            return self::getPostFromTiktokLink($string);
         }
 
         if (Str::of($string)->contains('youtu.be')) {
             $link = Str::of($string)->after('youtu.be/');
-            return $this->getAccountByPlatform('youtube', 'https://www.youtube.com', "https://www.youtube.com/watch?v={$link}");
+            return self::getAccountByPlatform('youtube', 'https://www.youtube.com', "https://www.youtube.com/watch?v={$link}");
         }
 
-        foreach ($this->urls as $key => $platform) {
+        foreach (self::$urls as $key => $platform) {
             if (Str::startsWith($link, Str::of($platform)->after('https://www.'))) {
-                return $this->getAccountByPlatform($key, $platform, 'https://www.'.$link);
+                return self::getAccountByPlatform($key, $platform, 'https://www.'.$link);
             }
         }
+
+        throw new Exception('Service unavailable', 503);
     }
 
-    public function getPostFromTiktokLink($link, $onlyLink = false)
+    /**
+     * Get a link to scrap into tiktok
+     * @param $link
+     * @param bool $onlyLink
+     * @return Builder|Model|JsonResponse|mixed|object|null
+     * @throws Exception
+     */
+    public static function getPostFromTiktokLink($link, $onlyLink = false)
     {
-        $res = Http::withHeaders($this->getTikTokHeaders())->get($link);
+        $res = Http::withHeaders(self::getTikTokHeaders())->get($link);
         if ($res->getStatusCode() === 200) {
             $html = $res->getBody();
             $dom = new DOMDocument();
@@ -59,7 +83,7 @@ class Scrapper {
                     if ($onlyLink) {
                         return $url;
                     }
-                    return $this->getAccountByPlatform('tiktok', $this->urls['tiktok'], $url);
+                    return self::getAccountByPlatform('tiktok', self::$urls['tiktok'], $url);
                 }
             }
         }
@@ -67,7 +91,14 @@ class Scrapper {
         throw new Exception('Service unavailable', 503);
     }
 
-    private function prepareForTikTok($link, $platform): ?\Illuminate\Http\JsonResponse
+    /**
+     * Prepare a linl to scrap into tiktok
+     * @param $link
+     * @param $platform
+     * @return JsonResponse|null
+     * @throws Exception
+     */
+    private static function prepareForTikTok($link, $platform)
     {
         $link = Str::of($link)->after("$platform/@");
         $items = explode('/', $link);
@@ -75,13 +106,21 @@ class Scrapper {
 
         $video_params = explode('?', $items[2]);
         if ($account !== '' && $video_params[0] !== '') {
-            return $this->getTikTokPost($account, $video_params[0]);
+            return self::getTikTokPost($account, $video_params[0]);
         }
 
         return null;
     }
 
-    private function getAccountByPlatform($key, $platform, $link)
+    /**
+     * Get Link for each kind of platform
+     * @param $key
+     * @param $platform
+     * @param $link
+     * @return Builder|Model|JsonResponse|mixed|object|null
+     * @throws Exception
+     */
+    private static function getAccountByPlatform($key, $platform, $link)
     {
         switch ($key) {
             case 'instagram':
@@ -91,7 +130,7 @@ class Scrapper {
                     if ($items[0] !== '') {
                         $post_id = isset($items[1]) ? ($items[1] != '' ? $items[1] : null) : null;
                         $post_id = Str::of($post_id)->before('?');
-                        return $this->storeInstagramStories($items[0], $post_id);
+                        return self::storeInstagramStories($items[0], $post_id);
                     }
                 }
                 $isTv = Str::contains($link, '/tv/');
@@ -102,12 +141,12 @@ class Scrapper {
 
                 $items = explode('/', $link);
                 if ($items[0] !== '') {
-                    return $this->getInstagramPost($items[0], $isTv, $isReel, $urlVerb);
+                    return self::getInstagramPost($items[0], $isTv, $isReel, $urlVerb);
                 }
                 break;
             case 'tiktok':
                 if (Str::of($link)->contains('/video/')) {
-                    return $this->prepareForTikTok($link, $platform);
+                    return self::prepareForTikTok($link, $platform);
                 } else {
                     try {
                         $ch = curl_init($link);
@@ -124,7 +163,7 @@ class Scrapper {
                         curl_close($ch);
 
                         if ($url) {
-                            return $this->prepareForTikTok($url, $platform);
+                            return self::prepareForTikTok($url, $platform);
                         }
                     } catch (Exception $exception) {
                         throw new Exception('Service unavailable', 503);
@@ -135,7 +174,7 @@ class Scrapper {
                 $link = Str::of($link)->after("$platform/watch?v=");
                 $items = explode('&', $link);
                 if ($items[0] !== '') {
-                    return $this->getYouTubePost($items[0]);
+                    return self::getYouTubePost($items[0]);
                 }
                 break;
             case 'pinterest':
@@ -143,14 +182,14 @@ class Scrapper {
 
                 $items = explode('/', $link);
                 if ($items[0] !== '') {
-                    return $this->getPinterestPost($items[0]);
+                    return self::getPinterestPost($items[0]);
                 }
                 break;
             case 'twitter':
                 $link = Str::of($link)->after("$platform/");
                 $items = explode('/status/', $link);
                 if (count($items) >= 2) {
-                    return $this->getTwitterPost($items[0], $items[1]);
+                    return self::getTwitterPost($items[0], $items[1]);
                 }
                 break;
         }
@@ -158,66 +197,46 @@ class Scrapper {
         throw new Exception('Service unavailable', 503);
     }
 
-    private function getBusinessInstagram($account, $internal = false)
+    /**
+     * Get an Instagram profile
+     * @param $account
+     * @param bool $internal
+     * @return JsonResponse
+     * @throws Exception
+     */
+    private static function getInstagram($account, $internal = false)
     {
-        $ig_profile = config('services.instagram_profile');
-        $helper = '{';
-        $access_token = config('services.instagram_access_token');
-
-        $profile_params = ['id', 'ig_id', 'profile_picture_url', 'name', 'username', 'follows_count', 'biography','followers_count'];
-        $profile_params_inline = implode(',', $profile_params);
-
-        $media_params = ['id', 'caption', 'like_count', 'comments_count', 'views_count', 'timestamp', 'username', 'media_product_type', 'media_type', 'permalink', 'media_url', 'video_duration'];
-        $media_params_inline = implode(',', $media_params);
-
-        $fields = urlencode("{$helper}{$profile_params_inline},media{$helper}{$media_params_inline},children{media_url}}}");
-
-        $link = "https://graph.facebook.com/v15.0/{$ig_profile}?fields=business_discovery.username($account){$fields}&access_token={$access_token}";
-        $response = Http::get($link);
-        $profile = null;
-        if ($json = json_decode($response->getBody()->getContents())) {
-            if ($profile_data = $json->business_discovery ?? null) {
-                if ($profile = $this->storeBusinessInstagramProfile($profile_data)) {
-                    $this->storeBusinessInstagramPost($profile_data, $profile, '', '', false, false, true);
-                    $profile = $profile->fresh();
-                }
-            }
-        }
-        return $profile;
-    }
-
-    private function getInstagram($account, $internal = false)
-    {
-        $route = "{$this->urls['instagram']}/{$account}/?__a=1";
+        $path = self::$urls['instagram'];
+        $route = "{$path}/{$account}/?__a=1";
 
         $profile = Account::where('platform', 'instagram')->where('username', $account)->first();
-        $headers = $this->getInstagramHeaders();
+        $headers = self::getInstagramHeaders();
 
         $res = Http::withHeaders($headers)->get($route);
         if ($res->getStatusCode() == 200) {
             if ($json = json_decode($res->getBody()->getContents())) {
                 $user_account = $json->graphql->user;
 
-                $profile = $this->storeInstagramProfile($user_account);
+                $profile = self::storeInstagramProfile($user_account);
 
                 if (!$internal && $user_account->edge_owner_to_timeline_media->count) {
                     $posts = collect($user_account->edge_owner_to_timeline_media->edges)->reverse();
 
                     foreach ($posts as $post) {
-                        $this->storeInstagramPost($post->node, $profile);
+                        self::storeInstagramPost($post->node, $profile);
                     }
                 }
 
                 $profile = $profile->fresh();
             } else {
                 $route = "https://i.instagram.com/api/v1/users/web_profile_info/?username={$account}";
-                $headers = $this->getInstagramHeaders(true, true);
+                $headers = self::getInstagramHeaders(true, true);
                 $res = Http::withHeaders($headers)->get($route);
 
                 if ($res->getStatusCode() == 200) {
                     if ($json = json_decode($res->getBody()->getContents())) {
                         $user_account = $json->data->user;
-                        $profile = $this->storeInstagramProfile($user_account);
+                        $profile = self::storeInstagramProfile($user_account);
 
                         $profile = $profile->fresh();
                     }
@@ -232,9 +251,19 @@ class Scrapper {
         throw new Exception('Instagram service unavailable', 503);
     }
 
-    private function getInstagramPost($postId, $isTv = false, $isReel = false, $urlVerb = 'p')
+    /**
+     * Get am Instagram post
+     * @param $postId
+     * @param $isTv
+     * @param $isReel
+     * @param $urlVerb
+     * @return Builder|Model|mixed|object
+     * @throws Exception
+     */
+    private static function getInstagramPost($postId, $isTv = false, $isReel = false, $urlVerb = 'p')
     {
-        $alter_route = "{$this->urls['instagram']}/p/{$postId}";
+        $path = self::$urls['instagram'];
+        $alter_route = "{$path}/p/{$postId}";
 
         $post = Post::with('account')
             ->where(function ($query) use ($postId) {
@@ -243,7 +272,7 @@ class Scrapper {
             ->where('is_tv', $isTv)
             ->where('is_reel', $isReel)
             ->first();
-        $headers = $this->getInstagramHeaders();
+        $headers = self::getInstagramHeaders();
         $res = Http::withHeaders($headers)->get($alter_route);
         $html = $res->getBody()->getContents();
 
@@ -293,20 +322,30 @@ class Scrapper {
         }
 
         if (!is_null($obtained_id)) {
-            $post = $this->scrapInstagramPost($post, $obtained_id, $isTv, $isReel, $urlVerb);
+            $post = self::scrapInstagramPost($post, $obtained_id, $isTv, $isReel, $urlVerb);
         }
 
         if ($post) {
-            return response()->json($post);
+            return $post;
         }
 
         throw new Exception('Instagram service unavailable', 503);
     }
 
-    private function scrapInstagramPost($post, $id, $isTv, $isReel, $urlVerb)
+    /**
+     * Scrap and get data from Instagram
+     * @param $post
+     * @param $id
+     * @param $isTv
+     * @param $isReel
+     * @param $urlVerb
+     * @return mixed
+     * @throws Exception
+     */
+    private static function scrapInstagramPost($post, $id, $isTv, $isReel, $urlVerb)
     {
         $obtained_link = "https://i.instagram.com/api/v1/media/{$id}/info/";
-        $headers = $this->getInstagramHeaders(true, true);
+        $headers = self::getInstagramHeaders(true, true);
         $res = Http::withHeaders($headers)->get($obtained_link);
         if ($json = json_decode($res->getBody()->getContents())) {
             if ($json->items && count($json->items)) {
@@ -314,9 +353,9 @@ class Scrapper {
                 $media->id = $media->id ?? $media->pk;
 
                 $owner = isset($media->user) ? $media->user->username : $media->owner->username;
-                $profile = $this->getInstagram($owner, true);
+                $profile = self::getInstagram($owner, true);
 
-                $post = $this->storeInstagramPost($media, $profile, $isTv, $isReel, $urlVerb);
+                $post = self::storeInstagramPost($media, $profile, $isTv, $isReel, $urlVerb);
 
                 $post->account;
                 $post->media;
@@ -326,30 +365,13 @@ class Scrapper {
         return $post;
     }
 
-    private function getFacebookHeaders()
-    {
-        $headers = [
-            'authority'     => 'www.facebook.com',
-            'accept'        => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-            'accept-language'=> 'es-419,es;q=0.9',
-            'cache-control' => 'max-age=0',
-            'cookie' => base64_decode(config('services.facebook_cookie')),
-            'sec-ch-prefers-color-scheme' => 'dark',
-            'sec-ch-ua' => '" Not A;Brand";v="99", "Chromium";v="101", "Microsoft Edge";v="101"',
-            'sec-ch-ua-mobile' => '?0',
-            'sec-ch-ua-platform' => '"Windows"',
-            'sec-fetch-dest' => 'document',
-            'sec-fetch-mode' => 'navigate',
-            'sec-fetch-site' => 'same-origin',
-            'sec-fetch-user' => '?1',
-            'upgrade-insecure-requests' => '1',
-            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.54 Safari/537.36 Edg/101.0.1210.39',
-        ];
-
-        return $headers;
-    }
-
-    private function getInstagramHeaders($history = false, $versioned = false)
+    /**
+     * Return the headers for an Instagram request
+     * @param bool $history
+     * @param bool $versioned
+     * @return array
+     */
+    private static function getInstagramHeaders($history = false, $versioned = false)
     {
         $headers = [
             'authority'     => $history ? 'i.instagram.com' : 'www.instagram.com',
@@ -366,7 +388,7 @@ class Scrapper {
             'cache-control' => 'max-age=0',
             'upgrade-insecure-requests' => '1',
             'sec-fetch-user' => '?1',
-            'cookie'        => base64_decode(config($history ? 'services.instagram_cookie_stories' : 'services.instagram_cookie'))
+            'cookie'        => base64_decode(config($history ? 'platforms.instagram_cookie_stories' : 'platforms.instagram_cookie'))
         ];
 
         if ($versioned) {
@@ -377,7 +399,7 @@ class Scrapper {
             $headers['x-csrftoken'] = '5ViccIUbhy80SRgiB6X5ecnzVdsYofIT';
             $headers['x-ig-app-id'] = '936619743392459';
 
-            $headers['cookie'] = base64_decode(config('services.instagram_versioned_cookie'));
+            $headers['cookie'] = base64_decode(config('platforms.instagram_versioned_cookie'));
         }
 
         if (!$history) {
@@ -395,7 +417,12 @@ class Scrapper {
         return $headers;
     }
 
-    private function storeInstagramProfile($user_account)
+    /**
+     * Store an Instagram profile
+     * @param $user_account
+     * @return mixed
+     */
+    private static function storeInstagramProfile($user_account)
     {
         Account::where('platform', 'instagram')->where('social_id', $user_account->id)->update(['social_id' => $user_account->fbid]);
         return Account::updateOrCreate([
@@ -413,29 +440,16 @@ class Scrapper {
         ]);
     }
 
-    private function storeBusinessInstagramProfile($user_account)
-    {
-        if ($account = Account::where('platform', 'instagram')->where('social_id', $user_account->ig_id)->first()) {
-            $account->social_id = $user_account->id;
-            $account->save();
-        }
-
-        return Account::updateOrCreate([
-            'platform' => 'instagram',
-            'social_id' => $user_account->id
-        ], [
-            'alter_id' => $user_account->ig_id,
-            'username' => $user_account->username,
-            'full_name' => $user_account->name ?? '',
-            'total_followers' => $user_account->followers_count ?? 0,
-            'total_following' => $user_account->follows_count ?? 0,
-            'total_likes' => 0,
-            'profile_picture_url' => $user_account->profile_picture_url ?? '',
-            'bio' => $user_account->biography ?? ''
-        ]);
-    }
-
-    private function storeInstagramPost($node, $profile, $isTv = false, $isReel = false, $urlVerb = 'p')
+    /**
+     * Store an Instagram post
+     * @param $node
+     * @param $profile
+     * @param $isTv
+     * @param $isReel
+     * @param $urlVerb
+     * @return mixed
+     */
+    private static function storeInstagramPost($node, $profile, $isTv = false, $isReel = false, $urlVerb = 'p')
     {
         $caption = $node->caption ? $node->caption->text : '';
 
@@ -480,11 +494,12 @@ class Scrapper {
             }
         }
 
-        $displayUrl = $this->getDisplayUrl($node);
+        $displayUrl = self::getDisplayUrl($node);
 
         $post = Post::where('post_identifier', $node->id)->first();
         $taken_at = isset($node->taken_at) ? $node->taken_at : (isset($node->taken_at_timestamp) ? $node->taken_at_timestamp : null);
         $code = $node->code ?? $node->shortcode;
+        $path = self::$urls['instagram'];
         $post_data = [
             'post_identifier' => $node->id,
             'account_id' => $profile->id,
@@ -492,7 +507,7 @@ class Scrapper {
             'is_video' => $is_video,
             'is_tv' => $isTv,
             'is_reel' => $isReel,
-            'url' => "{$this->urls['instagram']}/{$urlVerb}/{$code}",
+            'url' => "{$path}/{$urlVerb}/{$code}",
             'caption' => $caption,
             'display_url' => $displayUrl,
             'likes' => $likes,
@@ -501,7 +516,7 @@ class Scrapper {
             'shares' => 0
         ];
 
-        $post = $this->savePostAndUpdateStats($post, $post_data, $likes, $comments, $views);
+        $post = self::savePostAndUpdateStats($post, $post_data, $likes, $comments, $views);
 
         if ($post) {
             Media::where('post_id', $post->id)->delete();
@@ -510,7 +525,7 @@ class Scrapper {
                 $media_data = [
                     'post_id' => $post->id,
                     'is_video' => $is_video,
-                    'video_duration' => $this->getTime($node),
+                    'video_duration' => self::getTime($node),
                     'url' => $is_video ? $node->video_versions[0]->url : $displayUrl
                 ];
 
@@ -547,7 +562,7 @@ class Scrapper {
                 $media_data = [
                     'post_id' => $post->id,
                     'is_video' => $is_video,
-                    'video_duration' => $this->getTime($node),
+                    'video_duration' => self::getTime($node),
                     'url' => $is_video ? $node->video_url : $node->display_url
                 ];
 
@@ -557,90 +572,12 @@ class Scrapper {
         return $post;
     }
 
-    private function storeBusinessInstagramPost($data, $profile, $route, $display_url, $isTv, $isReel, $all = false)
-    {
-        $posts = $data->media ? collect($data->media->data) : collect();
-
-        $item = null;
-
-        $posts->each(function ($node) use ($profile, $route, $display_url, $isTv, $isReel, $all, &$item) {
-            $route = rtrim($route, '/');
-            if ($all || $node->permalink == "{$route}/") {
-                $caption = $node->caption ?? '';
-
-                $is_video = $node->media_type != 'IMAGE';
-                $likes = $node->like_count ?? 0;
-                $comments = $node->comments_count ?? 0;
-                $views = $node->views_count ?? 0;
-
-                $post = Post::where('post_identifier', $node->id)->first();
-                $taken_at = $node->timestamp ?? null;
-                $post_data = [
-                    'post_identifier' => $node->id,
-                    'account_id' => $profile->id,
-                    'date' => $taken_at ? Carbon::createFromTimestamp($taken_at) : now(),
-                    'is_video' => $is_video,
-                    'is_tv' => $isTv,
-                    'is_reel' => $isReel,
-                    'url' => $node->permalink,
-                    'caption' => $caption,
-                    'display_url' => $display_url,
-                    'likes' => $likes,
-                    'comments' => $post ? (max($post->comments, $comments)) : $comments,
-                    'views' => $views,
-                    'shares' => 0
-                ];
-
-                $post = $this->savePostAndUpdateStats($post, $post_data, $likes, $comments, $views);
-
-                if ($post) {
-                    Media::where('post_id', $post->id)->delete();
-                    $change_display = false;
-
-                    if (isset($node->children)) {
-                        foreach ($node->children->data as $media_edge) {
-                            if ($display_url == '') {
-                                $change_display = true;
-                                $display_url = $media_edge->media_url;
-                            }
-                            $media_data = [
-                                'post_id' => $post->id,
-                                'is_video' => $is_video,
-                                'url' => $media_edge->media_url
-                            ];
-                            Media::create($media_data);
-                        }
-                    } elseif (isset($node->media_url)) {
-                        if ($display_url == '') {
-                            $change_display = true;
-                            $display_url = $node->media_url;
-                        }
-                        $media_data = [
-                            'post_id' => $post->id,
-                            'is_video' => $is_video,
-                            'url' => $node->media_url
-                        ];
-
-                        Media::create($media_data);
-                    }
-
-                    if ($change_display) {
-                        $post->display_url = $display_url;
-                        $post->save();
-                    }
-                }
-
-                $post->account;
-                $post->media;
-
-                $item = $post;
-            }
-        });
-
-        return $item;
-    }
-
-    private function getDisplayUrl($node)
+    /**
+     * Search in node and get the display url
+     * @param $node
+     * @return mixed|null
+     */
+    private static function getDisplayUrl($node)
     {
         if (isset($node->carousel_media)) {
             $candidates = $node->carousel_media[0]->image_versions2->candidates;
@@ -665,7 +602,12 @@ class Scrapper {
         return null;
     }
 
-    private function getTime($node)
+    /**
+     * Search in node and get the video time
+     * @param $node
+     * @return int|string
+     */
+    private static function getTime($node)
     {
         if (isset($node->video_duration) || isset($node->duration)) {
             return gmdate('H:i:s', floor($node->video_duration ?? $node->duration ?? 0));
@@ -673,7 +615,18 @@ class Scrapper {
         return 0;
     }
 
-    private function savePostAndUpdateStats($post, $post_data, $likes, $comments, $views = 0, $dislikes = 0, $shares = 0)
+    /**
+     * Get the post engagements and save the biggest number for each kind of data
+     * @param $post
+     * @param $post_data
+     * @param $likes
+     * @param $comments
+     * @param $views
+     * @param $dislikes
+     * @param $shares
+     * @return mixed
+     */
+    private static function savePostAndUpdateStats($post, $post_data, $likes, $comments, $views = 0, $dislikes = 0, $shares = 0)
     {
         if ($post) {
             $elements = ['likes', 'comments', 'views', 'shares'];
@@ -689,15 +642,22 @@ class Scrapper {
         return $post;
     }
 
-    private function storeInstagramStories($user, $post_id)
+    /**
+     * Get and store an Instagram story
+     * @param $user
+     * @param $post_id
+     * @return JsonResponse
+     * @throws Exception
+     */
+    private static function storeInstagramStories($user, $post_id)
     {
-        if ($profile = $this->getInstagram($user, true)) {
+        if ($profile = self::getInstagram($user, true)) {
             $route = "https://i.instagram.com/api/v1/feed/reels_media/?reel_ids={$profile->alter_id}";
             $post = Post::where('post_identifier', $post_id)->where('is_story', true)->first();
             if ($post) {
-                return $this->returnPost($post, $post_id);
+                return self::returnPost($post, $post_id);
             }
-            $res = Http::withHeaders($this->getInstagramHeaders(true))->get($route);
+            $res = Http::withHeaders(self::getInstagramHeaders(true))->get($route);
             if ($res->getStatusCode() == 200) {
                 if ($json = json_decode($res->getBody()->getContents())) {
                     if (count($json->reels_media)) {
@@ -717,6 +677,7 @@ class Scrapper {
                             }
 
                             if (!is_null($first) && !is_null($latest)) {
+                                $path = self::$urls['instagram'];
                                 $post = Post::updateOrCreate([
                                     'post_identifier' => $latest->pk,
                                     'account_id' => $profile->id,
@@ -724,7 +685,7 @@ class Scrapper {
                                 ], [
                                     'date' => $latest->taken_at ? Carbon::createFromTimestamp($latest->taken_at) : now(),
                                     'is_video' => false,
-                                    'url' => "{$this->urls['instagram']}/stories/{$profile->username}/{$latest->pk}/",
+                                    'url' => "{$path}/stories/{$profile->username}/{$latest->pk}/",
                                     'caption' => '',
                                     'display_url' => isset($first->image_versions2) ? $first->image_versions2->candidates[0]->url : null,
                                 ]);
@@ -738,7 +699,7 @@ class Scrapper {
                                         'is_video' => $is_video,
                                         'reel_id' => $item->pk,
                                     ], [
-                                        'video_duration' => $this->getTime($item),
+                                        'video_duration' => self::getTime($item),
                                         'url' => $is_video ? ($item->video_versions[0]->url) : (isset($item->image_versions2) ? $item->image_versions2->candidates[0]->url : null)
                                     ]);
                                 }
@@ -749,14 +710,20 @@ class Scrapper {
             }
 
             if ($post) {
-                return $this->returnPost($post, $post_id);
+                return self::returnPost($post, $post_id);
             }
         }
 
         throw new Exception('Instagram service unavailable', 503);
     }
 
-    private function returnPost($post, $post_id)
+    /**
+     * Return a single post
+     * @param $post
+     * @param $post_id
+     * @return JsonResponse
+     */
+    private static function returnPost($post, $post_id)
     {
         $post->account;
         if (!is_null($post_id)) {
@@ -771,7 +738,12 @@ class Scrapper {
         return response()->json($post);
     }
 
-    private function fixAccount($string)
+    /**
+     * Remove @ char for a tiktok account
+     * @param $string
+     * @return mixed|string
+     */
+    private static function fixAccount($string)
     {
         if ($string[0] == '@') {
             return substr($string, 1);
@@ -779,130 +751,80 @@ class Scrapper {
         return $string;
     }
 
-    private function getTikTok($account, $savePosts = true)
+    /**
+     * Get and store a Tiktok profile
+     * @param $account
+     * @param $savePosts
+     * @return JsonResponse
+     * @throws Exception
+     */
+    private static function getTikTok($account, $savePosts = true)
     {
-        $route = "{$this->urls['tiktok']}/share/user/{$account}";
+        $path = self::$urls['tiktok'];
+        $route = "{$path}/share/user/{$account}";
 
         $profile = Account::where('platform', 'tiktok')->where('username', $account)->first();
-        try {
-            $res = Http::withHeaders($this->getTikTokHeaders())->get($route);
-            if ($res->getStatusCode() == 200) {
-                return $res->getBody()->getContents();
-                $html = (string)$res->getBody();
-                $dom = new DOMDocument();
-                @$dom->loadHTML($html);
+        $res = Http::withHeaders(self::getTikTokHeaders())->get($route);
+        if ($res->getStatusCode() == 200) {
+            return $res->getBody()->getContents();
+            $html = (string)$res->getBody();
+            $dom = new DOMDocument();
+            @$dom->loadHTML($html);
 
-                if ($json = json_decode($dom->getElementById('__NEXT_DATA__')->nodeValue)) {
-                    $pageProps = $json->props->pageProps;
-                    $items = collect($pageProps->items)->reverse();
+            if ($json = json_decode($dom->getElementById('__NEXT_DATA__')->nodeValue)) {
+                $pageProps = $json->props->pageProps;
+                $items = collect($pageProps->items)->reverse();
 
-                    if ($profile = $this->storeTikTokProfile($account)) {
-                        if ($savePosts) {
-                            foreach ($items as $key => $item) {
-                                $this->storeTikTokPost($item, $profile);
-                            }
-
-                            $profile = $profile->fresh();
-                        } else {
-                            return $profile;
+                if ($profile = self::storeTikTokProfile($account)) {
+                    if ($savePosts) {
+                        foreach ($items as $key => $item) {
+                            self::storeTikTokPost($item, $profile);
                         }
+
+                        $profile = $profile->fresh();
+                    } else {
+                        return $profile;
                     }
                 }
-            }
-        } catch (Exception $exception) {
-            \Log::info($exception->getMessage());
-            if (app()->bound('sentry') && $this->mustThrow()) {
-                app('sentry')->captureException($exception);
             }
         }
         if ($profile) {
             return response()->json($profile);
         }
 
-        if ($this->mustThrow()) {
-            throw new Exception('TikTok service unavailable', 503);
-        }
+        throw new Exception('TikTok service unavailable', 503);
     }
 
-    private function getSignedTiktokPost($profile, $post)
+    /**
+     * Get and store a tiktok post
+     * @param $account
+     * @param $post
+     * @return JsonResponse
+     * @throws Exception
+     */
+    private static function getTikTokPost($account, $post)
     {
-        $fields = [
-            'id',
-            'title',
-            'create_time',
-            'cover_image_url',
-            'share_url',
-            'video_description',
-            'duration',
-            'embed_html',
-            'embed_link',
-            'like_count',
-            'comment_count',
-            'share_count',
-            'view_count'
-        ];
-        $fieldsImplode = implode(',', $fields);
-        $route = "https://open.tiktokapis.com/v2/video/query/?fields={$fieldsImplode}";
-        $body = ['filters' => ['video_ids' => [$post]]];
-
-        $res = Http::withToken($profile->token->access_token)->post($route, $body);
-
-        if ($json = json_decode($res->getBody()->getContents())) {
-            if ($json->data && $json->data->videos && count($json->data->videos)) {
-                $node = $json->data->videos[0];
-                $likes = $node->like_count;
-                $comments = $node->comment_count;
-                $views = $node->view_count;
-                $shares = $node->share_count;
-
-                $post = Post::where('post_identifier', $node->id)->first();
-                $post_data = [
-                    'post_identifier' => $node->id,
-                    'account_id' => $profile->id,
-                    'date' => $node->create_time ? Carbon::createFromTimestamp($node->create_time) : now(),
-                    'is_video' => true,
-                    'url' => "{$this->urls['tiktok']}/@{$profile->username}/video/{$node->id}",
-                    'caption' => $node->video_description ?? '',
-                    'display_url' => $node->cover_image_url,
-                    'likes' => $likes,
-                    'comments' => $comments,
-                    'views' => $views,
-                    'shares' => $shares
-                ];
-
-                return $this->savePostAndUpdateStats($post, $post_data, $likes, $comments, $views, 0, $shares);
-            }
-        }
-
-        return null;
-    }
-
-    private function getTikTokPost($account, $post)
-    {
-        $signed_account = Account::with('token')->whereHas('token')->where('username', $account)->first();
-        if ($signed_account) {
-            $signed_post = $this->getSignedTiktokPost($signed_account, $post);
-        }
         $signature = env('TIKTOK_SIGNATURE');
-        $route = "{$this->urls['tiktok']}/node/share/video/@{$account}/{$post}?_signature={$signature}";
-        $alter_route = "{$this->urls['tiktok']}/@{$account}/video/{$post}";
+        $path = self::$urls['tiktok'];
+        $route = "{$path}/node/share/video/@{$account}/{$post}?_signature={$signature}";
+        $alter_route = "{$path}/@{$account}/video/{$post}";
         $postId = $post;
 
         $post = Post::with('account')->where('post_identifier', $post)->first();
-        $res = Http::withHeaders($this->getTikTokHeaders())->get($route);
+        $res = Http::withHeaders(self::getTikTokHeaders())->get($route);
         if ($res->getStatusCode() == 200) {
             if ($json = json_decode($res->getBody()->getContents())) {
                 $item = $json->itemInfo ? $json->itemInfo->itemStruct : null;
                 if ($item && $item->author) {
-                    if ($profile = $this->storeTikTokProfileFormatted($item->author, $item->authorStats)) {
-                        $post = $this->storeTikTokPost($item, $profile);
+                    if ($profile = self::storeTikTokProfileFormatted($item->author, $item->authorStats)) {
+                        $post = self::storeTikTokPost($item, $profile);
                         $post->account;
                         $post->media;
                     }
                 }
             }
         } else {
-            $res = Http::withHeaders($this->getTikTokHeaders())->get($alter_route);
+            $res = Http::withHeaders(self::getTikTokHeaders())->get($alter_route);
             if ($res->getStatusCode() == 200) {
                 $html = (string)$res->getBody();
                 $dom = new DOMDocument();
@@ -926,8 +848,8 @@ class Scrapper {
                             'signature' => $signature
                         ];
 
-                        if ($profile = $this->storeTikTokProfileFormatted($profileItem, $data->authorStats)) {
-                            $post = $this->storeTikTokPost($data, $profile);
+                        if ($profile = self::storeTikTokProfileFormatted($profileItem, $data->authorStats)) {
+                            $post = self::storeTikTokPost($data, $profile);
                             $post->account;
                             $post->media;
                         }
@@ -943,9 +865,15 @@ class Scrapper {
         throw new Exception('TikTok service unavailable', 503);
     }
 
-    private function storeTikTokProfile($account)
+    /**
+     * Get and store a tiktok profile
+     * @param $account
+     * @return null
+     */
+    private static function storeTikTokProfile($account)
     {
-        $profileRoute = "{$this->urls['tiktok']}/node/share/user/@{$account}";
+        $path = self::$urls['tiktok'];
+        $profileRoute = "{$path}/node/share/user/@{$account}";
         $userRes = Http::get($profileRoute);
         if ($userRes->getStatusCode() == 200) {
             if ($userJson = json_decode($userRes->getBody()->getContents())) {
@@ -968,7 +896,13 @@ class Scrapper {
         return null;
     }
 
-    private function storeTikTokProfileFormatted($user_account, $stats)
+    /**
+     * Store a TikTok profile from a received object
+     * @param $user_account
+     * @param $stats
+     * @return mixed
+     */
+    private static function storeTikTokProfileFormatted($user_account, $stats)
     {
         Account::where('platform', 'tiktok')->where('social_id', $user_account->uniqueId)->update(['social_id' => $user_account->id]);
         return Account::updateOrCreate([
@@ -985,7 +919,13 @@ class Scrapper {
         ]);
     }
 
-    private function storeTikTokPost($node, $profile)
+    /**
+     * Store a tiktok post
+     * @param $node
+     * @param $profile
+     * @return mixed
+     */
+    private static function storeTikTokPost($node, $profile)
     {
         $likes = $node->stats->diggCount ?? 0;
         $comments = $node->stats->commentCount ?? 0;
@@ -993,12 +933,13 @@ class Scrapper {
         $shares = $node->stats->shareCount ?? 0;
 
         $post = Post::where('post_identifier', $node->id)->first();
+        $path = self::$urls['tiktok'];
         $post_data = [
             'post_identifier' => $node->id,
             'account_id' => $profile->id,
             'date' => $node->createTime ? Carbon::createFromTimestamp($node->createTime) : now(),
             'is_video' => true,
-            'url' => "{$this->urls['tiktok']}/@{$profile->username}/video/{$node->id}",
+            'url' => "{$path}/@{$profile->username}/video/{$node->id}",
             'caption' => $node->desc ?? '',
             'display_url' => $node->video->cover,
             'likes' => $likes,
@@ -1007,14 +948,14 @@ class Scrapper {
             'shares' => $shares
         ];
 
-        $post = $this->savePostAndUpdateStats($post, $post_data, $likes, $comments, $views, 0, $shares);
+        $post = self::savePostAndUpdateStats($post, $post_data, $likes, $comments, $views, 0, $shares);
 
         if ($post) {
             Media::where('post_id', $post->id)->delete();
             Media::create([
                 'post_id' => $post->id,
                 'is_video' => true,
-                'video_duration' => $this->getTime($node->video),
+                'video_duration' => self::getTime($node->video),
                 'url' => $node->video->downloadAddr ?? $node->video->playAddr ?? $node->video->cover ?? ''
             ]);
         }
@@ -1022,10 +963,14 @@ class Scrapper {
         return $post;
     }
 
-    private function getTikTokHeaders()
+    /**
+     * Return the headers for a tiktok request
+     * @return array
+     */
+    private static function getTikTokHeaders()
     {
         return [
-            'cookie' => config('services.tiktok_cookie'),
+            'cookie' => config('platforms.tiktok_cookie'),
             'authority' => 'www.tiktok.com',
             'accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
             'accept-language' => 'es-419,es;q=0.9,es-ES;q=0.8,en;q=0.7,en-GB;q=0.6,en-US;q=0.5',
@@ -1042,9 +987,16 @@ class Scrapper {
         ];
     }
 
-    private function getYouTube($account)
+    /**
+     * Get and store a Youtube account
+     * @param $account
+     * @return JsonResponse
+     * @throws ContainerExceptionInterface
+     * @throws NotFoundExceptionInterface
+     */
+    private static function getYouTube($account)
     {
-        $key = config('services.google_api_key');
+        $key = config('platforms.google_api_key');
         $results = request()->get('results', 5);
         $uri = "https://www.googleapis.com/youtube/v3/search?key={$key}&channelId={$account}&part=snippet,id&order=date&maxResults={$results}";
 
@@ -1052,11 +1004,11 @@ class Scrapper {
         $res = Http::get($uri);
         if ($res->getStatusCode() == 200) {
             if ($json = json_decode($res->getBody()->getContents())) {
-                $profile = $this->storeYouTubeProfile($key, $account);
+                $profile = self::storeYouTubeProfile($key, $account);
                 if ($profile && count($json->items)) {
                     $items = collect($json->items)->reverse();
                     foreach ($items as $item) {
-                        $this->storeYouTubePost($key, $profile, $item->id->videoId);
+                        self::storeYouTubePost($key, $profile, $item->id->videoId);
                     }
 
                     $profile = $profile->fresh();
@@ -1071,12 +1023,18 @@ class Scrapper {
         throw new Exception('YouTube service unavailable', 503);
     }
 
-    private function getYouTubePost($post_id)
+    /**
+     * Get a youtube video data
+     * @param $post_id
+     * @return JsonResponse
+     * @throws Exception
+     */
+    private static function getYouTubePost($post_id)
     {
-        $key = config('services.google_api_key');
+        $key = config('platforms.google_api_key');
 
         $post = Post::with('account')->where('post_identifier', $post_id)->first();
-        $post = $this->storeYouTubePost($key, null, $post_id, true);
+        $post = self::storeYouTubePost($key, null, $post_id, true);
         $post->account;
         $post->media;
 
@@ -1087,7 +1045,13 @@ class Scrapper {
         throw new Exception('YouTube service unavailable', 503);
     }
 
-    private function storeYouTubeProfile($key, $account)
+    /**
+     * Store a youtube profile
+     * @param $key
+     * @param $account
+     * @return null
+     */
+    private static function storeYouTubeProfile($key, $account)
     {
         $uri = "https://www.googleapis.com/youtube/v3/channels?key={$key}&id={$account}&part=snippet,id,statistics";
         $res = Http::get($uri);
@@ -1113,7 +1077,15 @@ class Scrapper {
         return null;
     }
 
-    private function storeYouTubePost($key, $profile, $videoId, $storeProfile = false)
+    /**
+     * Store a youtube post
+     * @param $key
+     * @param $profile
+     * @param $videoId
+     * @param $storeProfile
+     * @return mixed|null
+     */
+    private static function storeYouTubePost($key, $profile, $videoId, $storeProfile = false)
     {
         $uri = "https://www.googleapis.com/youtube/v3/videos?key={$key}&id={$videoId}&part=snippet,id,statistics";
 
@@ -1123,7 +1095,7 @@ class Scrapper {
                 if (count($json->items)) {
                     $node = $json->items[0];
                     if ($storeProfile) {
-                        $profile = $this->storeYouTubeProfile($key, $node->snippet->channelId);
+                        $profile = self::storeYouTubeProfile($key, $node->snippet->channelId);
                     }
 
                     $likes = $node->statistics->likeCount ?? 0;
@@ -1132,12 +1104,13 @@ class Scrapper {
                     $views = $node->statistics->viewCount ?? 0;
 
                     $post = Post::where('post_identifier', $node->id)->first();
+                    $path = self::$urls['youtube'];
                     $post_data = [
                         'post_identifier' => $node->id,
                         'account_id' => $profile->id,
                         'date' => $node->snippet->publishedAt ? $node->snippet->publishedAt : now(),
                         'is_video' => true,
-                        'url' => "{$this->urls['youtube']}/watch?v={$node->id}",
+                        'url' => "{$path}/watch?v={$node->id}",
                         'caption' => $node->snippet->title ?? '',
                         'description' => $node->snippet->description ?? '',
                         'likes' => $likes,
@@ -1148,7 +1121,7 @@ class Scrapper {
                         'shares' => 0
                     ];
 
-                    $post = $this->savePostAndUpdateStats($post, $post_data, $likes, $comments, $views, $dislikes);
+                    $post = self::savePostAndUpdateStats($post, $post_data, $likes, $comments, $views, $dislikes);
 
                     if ($post && $post->wasRecentlyCreated && $node->snippet->thumbnails) {
                         Media::create([
@@ -1165,7 +1138,12 @@ class Scrapper {
         return null;
     }
 
-    private function storePinterestProfile($user_account)
+    /**
+     * Store a pinterest profile
+     * @param $user_account
+     * @return mixed
+     */
+    private static function storePinterestProfile($user_account)
     {
         return Account::updateOrCreate([
             'platform' => 'pinterest',
@@ -1181,7 +1159,13 @@ class Scrapper {
         ]);
     }
 
-    public function getPinterestPost($link)
+    /**
+     * Get and store a pinterest post
+     * @param $link
+     * @return JsonResponse
+     * @throws Exception
+     */
+    public static function getPinterestPost($link)
     {
         $uri = "https://www.pinterest.com/pin/{$link}";
         $post = Post::with('account')->where('post_identifier', $link)->first();
@@ -1195,9 +1179,10 @@ class Scrapper {
                 if ($json->props && $json->props->initialReduxState && $pins = $json->props->initialReduxState->pins) {
                     if (isset($pins->{$link})) {
                         $pin = $pins->{$link};
-                        if (isset($pin->closeup_attribution) && $profile = $this->storePinterestProfile($pin->closeup_attribution)) {
+                        if (isset($pin->closeup_attribution) && $profile = self::storePinterestProfile($pin->closeup_attribution)) {
                             $image = $pin->images ? ($pin->images->orig ? $pin->images->orig->url : '') : '';
 
+                            $path = self::$urls['pinterest'];
                             $post = Post::updateOrCreate([
                                 'post_identifier' => $pin->id,
                                 'account_id' => $profile->id,
@@ -1206,7 +1191,7 @@ class Scrapper {
                                 'is_video' => 0,
                                 'is_tv' => 0,
                                 'is_reel' => 0,
-                                'url' => "{$this->urls['pinterest']}/pin/{$pin->id}",
+                                'url' => "{$path}/pin/{$pin->id}",
                                 'caption' => isset($pin->closeup_unified_description) ? $pin->closeup_unified_description : '',
                                 'display_url' => $image,
                                 'likes' => 0,
@@ -1238,18 +1223,30 @@ class Scrapper {
         throw new Exception('Pinterest service unavailable', 503);
     }
 
-    private function getTwitterHeaders()
+    /**
+     * Return headers for a twitter request
+     * @return string[]
+     */
+    private static function getTwitterHeaders()
     {
-        $auth = config('services.twitter.auth');
+        $auth = config('platforms.twitter.auth');
 
         return [
             'authorization' => "Bearer {$auth}"
         ];
     }
 
-    private function getTwitterPost($account_id, $post_id)
+    /**
+     * Get amd stpre a twitter post
+     * @param $account_id
+     * @param $post_id
+     * @return JsonResponse
+     * @throws Exception
+     */
+    private static function getTwitterPost($account_id, $post_id)
     {
-        $uri = "{$this->urls['twitter']}/{$account_id}/status/{$post_id}";
+        $path = self::$urls['twitter'];
+        $uri = "{$path}/{$account_id}/status/{$post_id}";
         $post = Post::with('account')->where('post_identifier', $post_id)->first();
 
         $params = [
@@ -1297,7 +1294,7 @@ class Scrapper {
         $url_params = $params_arr->implode('&');
         $link = "https://api.twitter.com/2/tweets/?{$url_params}";
 
-        $res = Http::withHeaders($this->getTwitterHeaders())->get($link);
+        $res = Http::withHeaders(self::getTwitterHeaders())->get($link);
         if ($res->getStatusCode() == 200) {
             if ($json = json_decode($res->getBody()->getContents())) {
                 if ($json->data && count($json->data) && isset($json->includes->users) && count($json->includes->users)) {
@@ -1349,7 +1346,7 @@ class Scrapper {
                                     $duration->video_duration = ceil(($medias[0]->duration_ms ?? 0) / 1000);
                                     Media::create([
                                         'post_id' => $post->id,
-                                        'video_duration' => $this->getTime($duration),
+                                        'video_duration' => self::getTime($duration),
                                         'is_video' => true,
                                         'url' => $medias[0]->variants[0]->url
                                     ]);
@@ -1380,36 +1377,14 @@ class Scrapper {
         throw new Exception('Service unavailable', 503);
     }
 
-    private function searchAccountByPlatform($key, $platform, $link)
-    {
-        switch ($key) {
-            case 'instagram':
-                if (Str::contains($link, 'stories')) {
-                    $link = Str::of($link)->after("$platform/stories/");
-                    $items = explode('/', $link);
-                    if ($items[0] !== '') {
-                        $post_id = isset($items[1]) ? ($items[1] != '' ? $items[1] : null) : null;
-                        $post_id = Str::of($post_id)->before('?');
-                        return $this->storeInstagramStories($items[0], $post_id);
-                    }
-                }
-                $isTv = Str::contains($link, '/tv/');
-                $isReel = Str::contains($link, '/reel/');
-
-                $urlVerb = $isTv ? 'tv' : ($isReel ? 'reel' : 'p');
-                $link = Str::of($link)->after("$platform/$urlVerb/");
-
-                $items = explode('/', $link);
-                if ($items[0] !== '') {
-                    return $this->getInstagramPost($items[0], $isTv, $isReel, $urlVerb);
-                }
-                break;
-        }
-
-        throw new Exception('Service unavailable', 503);
-    }
-
-    private function searchInPlatform($link, $platform = 'facebook')
+    /**
+     * Search for a post or profile metadata
+     * @param $link
+     * @param $platform
+     * @return JsonResponse
+     * @throws Exception
+     */
+    private static function searchInPlatform($link, $platform = 'facebook')
     {
         $final_url = $link;
 
@@ -1491,7 +1466,7 @@ class Scrapper {
                             $username = $profile_items_arr[0];
                         }
                         $profile_url = "https://www.facebook.com/{$username}";
-                        $full_profile = $this->searchProfile('facebook', $username, $profile_url);
+                        $full_profile = self::searchProfile('facebook', $username, $profile_url);
                         $post_id = $profile_items_arr[count($profile_items_arr) - 1];
 
                         if ($full_profile['description'] !== '' || $full_profile['full_name'] !== '' || $full_profile['profile_picture_url'] !== '') {
@@ -1502,7 +1477,7 @@ class Scrapper {
 
                     if ($profile_url && $username != '' && $platform == 'instagram') {
                         $profile_url = "https://www.instagram.com/{$username}";
-                        $full_profile = $this->searchProfile('instagram', $username, $profile_url);
+                        $full_profile = self::searchProfile('instagram', $username, $profile_url);
 
                         if ($full_profile['description'] !== '' || $full_profile['full_name'] !== '' || $full_profile['profile_picture_url'] !== '') {
                             $profile_picture_url = $full_profile['profile_picture_url'];
@@ -1541,7 +1516,14 @@ class Scrapper {
         throw new Exception('Service unavailable', 503);
     }
 
-    private function searchProfile($platform, $username, $link)
+    /**
+     * Search for a profile metadata
+     * @param $platform
+     * @param $username
+     * @param $link
+     * @return string[]
+     */
+    private static function searchProfile($platform, $username, $link)
     {
         $description = '';
         $full_name = '';
@@ -1581,14 +1563,5 @@ class Scrapper {
             'full_name' => $full_name,
             'profile_picture_url' => $profile_picture_url
         ];
-    }
-
-    private function mustThrow($request = null)
-    {
-        if (is_null($request)) {
-            $request = request();
-        }
-
-        return !$request->filled('must_fail') || !$request->boolean('must_fail');
     }
 }
