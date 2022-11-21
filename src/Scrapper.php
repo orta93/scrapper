@@ -95,7 +95,7 @@ class Scrapper {
      * Prepare a linl to scrap into tiktok
      * @param $link
      * @param $platform
-     * @return JsonResponse|null
+     * @return mixed|null
      * @throws Exception
      */
     private static function prepareForTikTok($link, $platform)
@@ -201,7 +201,7 @@ class Scrapper {
      * Get an Instagram profile
      * @param $account
      * @param bool $internal
-     * @return JsonResponse
+     * Builder|Model|object
      * @throws Exception
      */
     private static function getInstagram($account, $internal = false)
@@ -245,7 +245,7 @@ class Scrapper {
         }
 
         if ($profile) {
-            return $internal ? $profile : response()->json($profile);
+            return $profile;
         }
 
         throw new Exception('Instagram service unavailable', 503);
@@ -339,7 +339,7 @@ class Scrapper {
      * @param $isTv
      * @param $isReel
      * @param $urlVerb
-     * @return mixed
+     * @return Builder|Model|object
      * @throws Exception
      */
     private static function scrapInstagramPost($post, $id, $isTv, $isReel, $urlVerb)
@@ -420,7 +420,7 @@ class Scrapper {
     /**
      * Store an Instagram profile
      * @param $user_account
-     * @return mixed
+     * @return Builder|Model|object
      */
     private static function storeInstagramProfile($user_account)
     {
@@ -447,7 +447,7 @@ class Scrapper {
      * @param $isTv
      * @param $isReel
      * @param $urlVerb
-     * @return mixed
+     * @return Builder|Model|object
      */
     private static function storeInstagramPost($node, $profile, $isTv = false, $isReel = false, $urlVerb = 'p')
     {
@@ -624,7 +624,7 @@ class Scrapper {
      * @param $views
      * @param $dislikes
      * @param $shares
-     * @return mixed
+     * @return Builder|Model|object
      */
     private static function savePostAndUpdateStats($post, $post_data, $likes, $comments, $views = 0, $dislikes = 0, $shares = 0)
     {
@@ -646,7 +646,7 @@ class Scrapper {
      * Get and store an Instagram story
      * @param $user
      * @param $post_id
-     * @return JsonResponse
+     * @return Builder|Model|object
      * @throws Exception
      */
     private static function storeInstagramStories($user, $post_id)
@@ -721,7 +721,7 @@ class Scrapper {
      * Return a single post
      * @param $post
      * @param $post_id
-     * @return JsonResponse
+     * @return Builder|Model|object
      */
     private static function returnPost($post, $post_id)
     {
@@ -735,7 +735,7 @@ class Scrapper {
         } else {
             $post->media;
         }
-        return response()->json($post);
+        return $post;
     }
 
     /**
@@ -755,7 +755,7 @@ class Scrapper {
      * Get and store a Tiktok profile
      * @param $account
      * @param $savePosts
-     * @return JsonResponse
+     * @return Builder|Model|object
      * @throws Exception
      */
     private static function getTikTok($account, $savePosts = true)
@@ -789,7 +789,7 @@ class Scrapper {
             }
         }
         if ($profile) {
-            return response()->json($profile);
+            return $profile;
         }
 
         throw new Exception('TikTok service unavailable', 503);
@@ -799,7 +799,7 @@ class Scrapper {
      * Get and store a tiktok post
      * @param $account
      * @param $post
-     * @return JsonResponse
+     * @return array
      * @throws Exception
      */
     private static function getTikTokPost($account, $post)
@@ -859,7 +859,7 @@ class Scrapper {
         }
 
         if ($post) {
-            return response()->json($post);
+            return $post;
         }
 
         throw new Exception('TikTok service unavailable', 503);
@@ -900,7 +900,7 @@ class Scrapper {
      * Store a TikTok profile from a received object
      * @param $user_account
      * @param $stats
-     * @return mixed
+     * @return Builder|Model|object
      */
     private static function storeTikTokProfileFormatted($user_account, $stats)
     {
@@ -923,7 +923,7 @@ class Scrapper {
      * Store a tiktok post
      * @param $node
      * @param $profile
-     * @return mixed
+     * @return Builder|Model|object
      */
     private static function storeTikTokPost($node, $profile)
     {
@@ -990,7 +990,7 @@ class Scrapper {
     /**
      * Get and store a Youtube account
      * @param $account
-     * @return JsonResponse
+     * @return Builder|Model|object
      * @throws ContainerExceptionInterface
      * @throws NotFoundExceptionInterface
      */
@@ -1017,7 +1017,7 @@ class Scrapper {
         }
 
         if ($profile) {
-            return response()->json($profile);
+            return $profile;
         }
 
         throw new Exception('YouTube service unavailable', 503);
@@ -1026,7 +1026,7 @@ class Scrapper {
     /**
      * Get a youtube video data
      * @param $post_id
-     * @return JsonResponse
+     * @return Builder|Model|object
      * @throws Exception
      */
     private static function getYouTubePost($post_id)
@@ -1039,7 +1039,7 @@ class Scrapper {
         $post->media;
 
         if ($post) {
-            return response()->json($post);
+            return $post;
         }
 
         throw new Exception('YouTube service unavailable', 503);
@@ -1141,7 +1141,7 @@ class Scrapper {
     /**
      * Store a pinterest profile
      * @param $user_account
-     * @return mixed
+     * @return Builder|Model|object
      */
     private static function storePinterestProfile($user_account)
     {
@@ -1162,7 +1162,7 @@ class Scrapper {
     /**
      * Get and store a pinterest post
      * @param $link
-     * @return JsonResponse
+     * @return Builder|Model|object
      * @throws Exception
      */
     public static function getPinterestPost($link)
@@ -1217,7 +1217,7 @@ class Scrapper {
         }
 
         if ($post) {
-            return response()->json($post);
+            return $post;
         }
 
         throw new Exception('Pinterest service unavailable', 503);
@@ -1237,10 +1237,10 @@ class Scrapper {
     }
 
     /**
-     * Get amd stpre a twitter post
+     * Get and store a twitter post
      * @param $account_id
      * @param $post_id
-     * @return JsonResponse
+     * @return Builder|Model|object
      * @throws Exception
      */
     private static function getTwitterPost($account_id, $post_id)
@@ -1364,14 +1364,14 @@ class Scrapper {
 
                         $post->account;
                         $post->media;
-                        return response()->json($post);
+                        return $post;
                     }
                 }
             }
         }
 
         if ($post) {
-            return response()->json($post);
+            return $post;
         }
 
         throw new Exception('Service unavailable', 503);
@@ -1381,7 +1381,7 @@ class Scrapper {
      * Search for a post or profile metadata
      * @param $link
      * @param $platform
-     * @return JsonResponse
+     * @return array
      * @throws Exception
      */
     private static function searchInPlatform($link, $platform = 'facebook')
@@ -1492,7 +1492,7 @@ class Scrapper {
                     $final_url = explode('?', $final_url);
                     $final_url = $final_url[0];
 
-                    return response()->json([
+                    return [
                         'caption' => $description,
                         'medium' => $medium,
                         'url' => $url ?? $display_url,
@@ -1508,7 +1508,7 @@ class Scrapper {
                         'social_id' => $username,
                         'post_identifier' => $post_id,
                         'video_duration' => '00:00:00',
-                    ]);
+                    ];
                 }
             }
         }
