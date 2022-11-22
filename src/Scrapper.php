@@ -61,6 +61,20 @@ class Scrapper {
         throw new Exception('Service unavailable', 503);
     }
 
+    public static function getAccountPost($platform, $profile, $post)
+    {
+        switch ($platform) {
+            case 'instagram':
+                return self::getInstagramPost($post);
+            case 'tiktok':
+                return self::getTikTokPost($profile, $post);
+            case 'youtube':
+                return self::getYouTubePost($post);
+        }
+
+        throw new Exception('Service unavailable', 503);
+    }
+
     /**
      * Get a link to scrap into tiktok
      * @param $link
@@ -98,7 +112,7 @@ class Scrapper {
      * @return mixed|null
      * @throws Exception
      */
-    private static function prepareForTikTok($link, $platform)
+    public static function prepareForTikTok($link, $platform)
     {
         $link = Str::of($link)->after("$platform/@");
         $items = explode('/', $link);
@@ -120,7 +134,7 @@ class Scrapper {
      * @return Builder|Model|JsonResponse|mixed|object|null
      * @throws Exception
      */
-    private static function getAccountByPlatform($key, $platform, $link)
+    public static function getAccountByPlatform($key, $platform, $link)
     {
         switch ($key) {
             case 'instagram':
@@ -342,7 +356,7 @@ class Scrapper {
      * @return Builder|Model|object
      * @throws Exception
      */
-    private static function scrapInstagramPost($post, $id, $isTv, $isReel, $urlVerb)
+    public static function scrapInstagramPost($post, $id, $isTv, $isReel, $urlVerb)
     {
         $obtained_link = "https://i.instagram.com/api/v1/media/{$id}/info/";
         $headers = self::getInstagramHeaders(true, true);
@@ -371,7 +385,7 @@ class Scrapper {
      * @param bool $versioned
      * @return array
      */
-    private static function getInstagramHeaders($history = false, $versioned = false)
+    public static function getInstagramHeaders($history = false, $versioned = false)
     {
         $headers = [
             'authority'     => $history ? 'i.instagram.com' : 'www.instagram.com',
@@ -422,7 +436,7 @@ class Scrapper {
      * @param $user_account
      * @return Builder|Model|object
      */
-    private static function storeInstagramProfile($user_account)
+    public static function storeInstagramProfile($user_account)
     {
         Account::where('platform', 'instagram')->where('social_id', $user_account->id)->update(['social_id' => $user_account->fbid]);
         return Account::updateOrCreate([
@@ -449,7 +463,7 @@ class Scrapper {
      * @param $urlVerb
      * @return Builder|Model|object
      */
-    private static function storeInstagramPost($node, $profile, $isTv = false, $isReel = false, $urlVerb = 'p')
+    public static function storeInstagramPost($node, $profile, $isTv = false, $isReel = false, $urlVerb = 'p')
     {
         $caption = $node->caption ? $node->caption->text : '';
 
@@ -577,7 +591,7 @@ class Scrapper {
      * @param $node
      * @return mixed|null
      */
-    private static function getDisplayUrl($node)
+    public static function getDisplayUrl($node)
     {
         if (isset($node->carousel_media)) {
             $candidates = $node->carousel_media[0]->image_versions2->candidates;
@@ -607,7 +621,7 @@ class Scrapper {
      * @param $node
      * @return int|string
      */
-    private static function getTime($node)
+    public static function getTime($node)
     {
         if (isset($node->video_duration) || isset($node->duration)) {
             return gmdate('H:i:s', floor($node->video_duration ?? $node->duration ?? 0));
@@ -626,7 +640,7 @@ class Scrapper {
      * @param $shares
      * @return Builder|Model|object
      */
-    private static function savePostAndUpdateStats($post, $post_data, $likes, $comments, $views = 0, $dislikes = 0, $shares = 0)
+    public static function savePostAndUpdateStats($post, $post_data, $likes, $comments, $views = 0, $dislikes = 0, $shares = 0)
     {
         if ($post) {
             $elements = ['likes', 'comments', 'views', 'shares'];
@@ -649,7 +663,7 @@ class Scrapper {
      * @return Builder|Model|object
      * @throws Exception
      */
-    private static function storeInstagramStories($user, $post_id)
+    public static function storeInstagramStories($user, $post_id)
     {
         if ($profile = self::getInstagram($user, true)) {
             $route = "https://i.instagram.com/api/v1/feed/reels_media/?reel_ids={$profile->alter_id}";
@@ -723,7 +737,7 @@ class Scrapper {
      * @param $post_id
      * @return Builder|Model|object
      */
-    private static function returnPost($post, $post_id)
+    public static function returnPost($post, $post_id)
     {
         $post->account;
         if (!is_null($post_id)) {
@@ -870,7 +884,7 @@ class Scrapper {
      * @param $account
      * @return null
      */
-    private static function storeTikTokProfile($account)
+    public static function storeTikTokProfile($account)
     {
         $path = self::$urls['tiktok'];
         $profileRoute = "{$path}/node/share/user/@{$account}";
@@ -902,7 +916,7 @@ class Scrapper {
      * @param $stats
      * @return Builder|Model|object
      */
-    private static function storeTikTokProfileFormatted($user_account, $stats)
+    public static function storeTikTokProfileFormatted($user_account, $stats)
     {
         Account::where('platform', 'tiktok')->where('social_id', $user_account->uniqueId)->update(['social_id' => $user_account->id]);
         return Account::updateOrCreate([
@@ -925,7 +939,7 @@ class Scrapper {
      * @param $profile
      * @return Builder|Model|object
      */
-    private static function storeTikTokPost($node, $profile)
+    public static function storeTikTokPost($node, $profile)
     {
         $likes = $node->stats->diggCount ?? 0;
         $comments = $node->stats->commentCount ?? 0;
@@ -967,7 +981,7 @@ class Scrapper {
      * Return the headers for a tiktok request
      * @return array
      */
-    private static function getTikTokHeaders()
+    public static function getTikTokHeaders()
     {
         return [
             'cookie' => config('platforms.tiktok_cookie'),
@@ -1051,7 +1065,7 @@ class Scrapper {
      * @param $account
      * @return null
      */
-    private static function storeYouTubeProfile($key, $account)
+    public static function storeYouTubeProfile($key, $account)
     {
         $uri = "https://www.googleapis.com/youtube/v3/channels?key={$key}&id={$account}&part=snippet,id,statistics";
         $res = Http::get($uri);
@@ -1085,7 +1099,7 @@ class Scrapper {
      * @param $storeProfile
      * @return mixed|null
      */
-    private static function storeYouTubePost($key, $profile, $videoId, $storeProfile = false)
+    public static function storeYouTubePost($key, $profile, $videoId, $storeProfile = false)
     {
         $uri = "https://www.googleapis.com/youtube/v3/videos?key={$key}&id={$videoId}&part=snippet,id,statistics";
 
@@ -1143,7 +1157,7 @@ class Scrapper {
      * @param $user_account
      * @return Builder|Model|object
      */
-    private static function storePinterestProfile($user_account)
+    public static function storePinterestProfile($user_account)
     {
         return Account::updateOrCreate([
             'platform' => 'pinterest',
@@ -1227,7 +1241,7 @@ class Scrapper {
      * Return headers for a twitter request
      * @return string[]
      */
-    private static function getTwitterHeaders()
+    public static function getTwitterHeaders()
     {
         $auth = config('platforms.twitter.auth');
 
@@ -1243,7 +1257,7 @@ class Scrapper {
      * @return Builder|Model|object
      * @throws Exception
      */
-    private static function getTwitterPost($account_id, $post_id)
+    public static function getTwitterPost($account_id, $post_id)
     {
         $path = self::$urls['twitter'];
         $uri = "{$path}/{$account_id}/status/{$post_id}";
