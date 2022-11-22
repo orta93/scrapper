@@ -204,7 +204,7 @@ class Scrapper {
      * Builder|Model|object
      * @throws Exception
      */
-    private static function getInstagram($account, $internal = false)
+    public static function getInstagram($account, $internal = false)
     {
         $path = self::$urls['instagram'];
         $route = "{$path}/{$account}/?__a=1";
@@ -260,7 +260,7 @@ class Scrapper {
      * @return Builder|Model|mixed|object
      * @throws Exception
      */
-    private static function getInstagramPost($postId, $isTv = false, $isReel = false, $urlVerb = 'p')
+    public static function getInstagramPost($postId, $isTv = false, $isReel = false, $urlVerb = 'p')
     {
         $path = self::$urls['instagram'];
         $alter_route = "{$path}/p/{$postId}";
@@ -743,7 +743,7 @@ class Scrapper {
      * @param $string
      * @return mixed|string
      */
-    private static function fixAccount($string)
+    public static function fixAccount($string)
     {
         if ($string[0] == '@') {
             return substr($string, 1);
@@ -758,7 +758,7 @@ class Scrapper {
      * @return Builder|Model|object
      * @throws Exception
      */
-    private static function getTikTok($account, $savePosts = true)
+    public static function getTikTok($account, $savePosts = true)
     {
         $path = self::$urls['tiktok'];
         $route = "{$path}/share/user/{$account}";
@@ -802,7 +802,7 @@ class Scrapper {
      * @return array
      * @throws Exception
      */
-    private static function getTikTokPost($account, $post)
+    public static function getTikTokPost($account, $post)
     {
         $signature = env('TIKTOK_SIGNATURE');
         $path = self::$urls['tiktok'];
@@ -994,7 +994,7 @@ class Scrapper {
      * @throws ContainerExceptionInterface
      * @throws NotFoundExceptionInterface
      */
-    private static function getYouTube($account)
+    public static function getYouTube($account)
     {
         $key = config('platforms.google_api_key');
         $results = request()->get('results', 5);
@@ -1029,7 +1029,7 @@ class Scrapper {
      * @return Builder|Model|object
      * @throws Exception
      */
-    private static function getYouTubePost($post_id)
+    public static function getYouTubePost($post_id)
     {
         $key = config('platforms.google_api_key');
 
@@ -1384,7 +1384,7 @@ class Scrapper {
      * @return array
      * @throws Exception
      */
-    private static function searchInPlatform($link, $platform = 'facebook')
+    public static function searchInPlatform($link, $platform = 'facebook')
     {
         $final_url = $link;
 
@@ -1523,7 +1523,7 @@ class Scrapper {
      * @param $link
      * @return string[]
      */
-    private static function searchProfile($platform, $username, $link)
+    public static function searchProfile($platform, $username, $link)
     {
         $description = '';
         $full_name = '';
