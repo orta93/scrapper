@@ -1,11 +1,11 @@
 {
-    "name": "markerly/scrapper",
+    "name": "markerly/web-crawl",
     "description": "A scraper for social platforms",
     "type": "library",
     "license": "proprietary",
     "autoload": {
         "psr-4": {
-            "Markerly\\Scrapper\\": "src/"
+            "Markerly\\WebCrawl\\": "src/"
         }
     },
     "minimum-stability": "dev",
@@ -20,7 +20,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Markerly\\Scrapper\\Providers\\ScrapperProvider"
+                "Markerly\\WebCrawl\\Providers\\WebCrawlProvider"
             ]
         }
     }
