@@ -1,13 +1,13 @@
 <?php
 
-namespace Markerly\WebCraw;
+namespace Justinjkline\WebCrawlPublic;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
-use Markerly\WebCraw\Models\Account;
-use Markerly\WebCraw\Models\Media;
-use Markerly\WebCraw\Models\Post;
+use Justinjkline\WebCrawlPublic\Models\Account;
+use Justinjkline\WebCrawlPublic\Models\Media;
+use Justinjkline\WebCrawlPublic\Models\Post;
 use Carbon\Carbon;
 use DOMDocument;
 use DOMXPath;
@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\NotFoundExceptionInterface;
 
-class WebCraw {
+class WebCrawlPublic {
     /**
      * Array for available platforms links
      * @var array|string[]

@@ -1,11 +1,11 @@
 {
-    "name": "markerly/web-crawl",
-    "description": "A scraper for social platforms",
+    "name": "justinjkline/web-crawl-public",
+    "description": "A crawl for web platforms",
     "type": "library",
     "license": "proprietary",
     "autoload": {
         "psr-4": {
-            "Markerly\\WebCrawl\\": "src/"
+            "Justinjkline\\WebCrawlPublic\\": "src/"
         }
     },
     "minimum-stability": "dev",
@@ -20,7 +20,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Markerly\\WebCrawl\\Providers\\WebCrawlProvider"
+                "Justinjkline\\WebCrawlPublic\\Providers\\WebCrawlPublicProvider"
             ]
         }
     }

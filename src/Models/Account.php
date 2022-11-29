@@ -1,6 +1,6 @@
 <?php
 
-namespace Markerly\WebCraw\Models;
+namespace Justinjkline\WebCrawlPublic\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
