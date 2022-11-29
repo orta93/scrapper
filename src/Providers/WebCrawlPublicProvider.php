@@ -1,6 +1,6 @@
 <?php
 
-namespace Justinjkline\WebCrawPublic\Providers;
+namespace Justinjkline\WebCrawlPublic\Providers;
 
 use Illuminate\Support\ServiceProvider;
 
